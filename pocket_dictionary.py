@@ -1,13 +1,17 @@
+#!/usr/bin/env python
 # main.py
 import argparse
 import json
 import random
 import sys
 import requests
+import os # Import the os module to handle file paths
 
 # --- Configuration ---
-# The name of the file where your words will be stored.
-WORD_FILE = "my_words.txt"
+# Define the directory and file path for storing words.
+# os.path.expanduser("~") gets the path to the user's home directory.
+WORD_DIR = os.path.expanduser("~/.word_dictionary")
+WORD_FILE = os.path.join(WORD_DIR, "word.txt")
 # The API endpoint for the dictionary.
 DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/"
 
@@ -16,10 +20,12 @@ DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/"
 def get_words_from_file():
     """
     Reads all words from the WORD_FILE.
-    Creates the file if it doesn't exist.
+    Creates the directory and file if they don't exist.
     Returns a list of words.
     """
     try:
+        # Ensure the directory exists before trying to access the file.
+        os.makedirs(WORD_DIR, exist_ok=True)
         with open(WORD_FILE, "r") as f:
             # Read lines, strip whitespace from each, and filter out empty lines.
             words = [line.strip() for line in f.readlines() if line.strip()]
@@ -135,7 +141,7 @@ def list_all_words():
     if not words:
         print("ℹ️ Your word list is empty.")
         return
-    
+
     print("--- Your Saved Words ---")
     for i, word in enumerate(sorted(words), 1):
         print(f"{i}. {word}")
@@ -169,7 +175,7 @@ def main():
 
     # Command: random
     subparsers.add_parser("random", help="Start a random word quiz from your list.")
-    
+
     # Command: list
     subparsers.add_parser("list", help="Show all words in your list.")
 
