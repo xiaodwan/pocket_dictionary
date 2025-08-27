@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# main.py
 import argparse
 import json
 import random
@@ -8,12 +7,17 @@ import requests
 import os # Import the os module to handle file paths
 
 # --- Configuration ---
-# Define the directory and file path for storing words.
+# Define the directory and file path for storing words and weights.
 # os.path.expanduser("~") gets the path to the user's home directory.
 WORD_DIR = os.path.expanduser("~/.word_dictionary")
 WORD_FILE = os.path.join(WORD_DIR, "word.txt")
+WEIGHT_FILE = os.path.join(WORD_DIR, "weights.json")
 # The API endpoint for the dictionary.
 DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/"
+# Default weight for new words and weight adjustment values.
+DEFAULT_WEIGHT = 5
+WEIGHT_INCREASE = 2 # Increase weight by this much on wrong answer
+WEIGHT_DECREASE = 1 # Decrease weight by this much on correct answer
 
 # --- Helper Functions for File Operations ---
 
@@ -66,7 +70,57 @@ def remove_word_from_file(word):
     else:
         print(f"❌ Word '{word}' was not found in your list.")
 
+# --- Weight Management Functions ---
+
+def load_weights():
+    """
+    Loads word weights from WEIGHT_FILE.
+    Synchronizes with WORD_FILE, adding new words and removing old ones.
+    """
+    words = get_words_from_file()
+    try:
+        with open(WEIGHT_FILE, 'r') as f:
+            weights = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        weights = {}
+
+    # Add new words from word.txt to weights with default weight
+    for word in words:
+        if word not in weights:
+            weights[word] = DEFAULT_WEIGHT
+
+    # Remove words from weights that are no longer in word.txt
+    words_to_remove = [word for word in weights if word not in words]
+    for word in words_to_remove:
+        del weights[word]
+
+    return weights
+
+def save_weights(weights):
+    """Saves the weights dictionary to the WEIGHT_FILE."""
+    with open(WEIGHT_FILE, 'w') as f:
+        json.dump(weights, f, indent=4)
+
 # --- Core Dictionary Functions ---
+
+def get_definitions_for_word(word):
+    """
+    Fetches only the definitions for a word from the API.
+    Returns a formatted string of definitions, or None on failure.
+    """
+    try:
+        response = requests.get(f"{DICTIONARY_API_URL}{word}")
+        response.raise_for_status()
+        data = response.json()
+
+        definitions_text = []
+        for meaning in data[0]['meanings']:
+            definitions_text.append(f"\n🔹 Part of Speech: {meaning['partOfSpeech']}")
+            for i, definition in enumerate(meaning['definitions'], 1):
+                definitions_text.append(f"  {i}. {definition['definition']}")
+        return "".join(definitions_text)
+    except (requests.exceptions.RequestException, KeyError, IndexError):
+        return None
 
 def lookup_word(word):
     """
@@ -77,12 +131,9 @@ def lookup_word(word):
     print(f"🔍 Looking up '{word}'...")
     try:
         response = requests.get(f"{DICTIONARY_API_URL}{word}")
-        # Raise an exception for bad status codes (like 404, 500)
         response.raise_for_status()
-
         data = response.json()
 
-        # --- Print Formatted Output ---
         print("\n" + "="*40)
         print(f"📖 Definitions for: {data[0]['word']}")
         if 'phonetic' in data[0] and data[0]['phonetic']:
@@ -97,7 +148,6 @@ def lookup_word(word):
                     print(f"     Example: \"{definition['example']}\"")
         print("\n" + "="*40)
 
-        # If the lookup was successful, save the word.
         save_word_to_file(word)
 
     except requests.exceptions.HTTPError as err:
@@ -109,7 +159,6 @@ def lookup_word(word):
         print(f"A network error occurred: {err}")
     except (KeyError, IndexError):
         print("❌ Could not parse the dictionary response. The API format might have changed.")
-
 
 def random_word_quiz():
     """
@@ -134,7 +183,6 @@ def random_word_quiz():
     except KeyboardInterrupt:
         print("\n👋 Quiz finished. Keep practicing!")
 
-
 def list_all_words():
     """Prints all the words currently saved in the file."""
     words = get_words_from_file()
@@ -147,6 +195,70 @@ def list_all_words():
         print(f"{i}. {word}")
     print("------------------------")
 
+def word_test():
+    """
+    Gives the user a definition and asks them to guess the word.
+    Tracks stats and uses a weighted system for word selection.
+    """
+    weights = load_weights()
+    if not weights:
+        print("❌ Your word list is empty! Look up some words first using the 'lookup' command.")
+        return
+
+    print("--- Word Guessing Test ---")
+    print("You will be given a definition. Guess the word!")
+    print("Press Ctrl+C to quit at any time and see your score.")
+    print("-" * 30)
+
+    correct_count = 0
+    incorrect_count = 0
+
+    try:
+        while True:
+            word_list = list(weights.keys())
+            weight_list = list(weights.values())
+
+            chosen_word = random.choices(word_list, weights=weight_list, k=1)[0]
+            definitions = get_definitions_for_word(chosen_word)
+
+            if not definitions:
+                print(f"Could not fetch definition for '{chosen_word}', skipping.")
+                continue
+
+            print("\n" + "="*40)
+            print("DEFINITION(S):")
+            print(definitions)
+            print("="*40)
+
+            guess = input("What is the word? -> ").lower().strip()
+
+            if guess == chosen_word:
+                print("✅ Correct!")
+                correct_count += 1
+                # Decrease weight for correct answers, minimum weight is 1
+                weights[chosen_word] = max(1, weights[chosen_word] - WEIGHT_DECREASE)
+            else:
+                print(f"❌ Incorrect. The word was: {chosen_word}")
+                incorrect_count += 1
+                # Increase weight for incorrect answers
+                weights[chosen_word] += WEIGHT_INCREASE
+
+    except KeyboardInterrupt:
+        print("\n\n--- Test Over ---")
+        total = correct_count + incorrect_count
+        if total > 0:
+            success_rate = (correct_count / total) * 100
+            fail_rate = (incorrect_count / total) * 100
+            print(f"Correct: {correct_count}")
+            print(f"Incorrect: {incorrect_count}")
+            print(f"Success Rate: {success_rate:.2f}%")
+            print(f"Failure Rate: {fail_rate:.2f}%")
+        else:
+            print("You didn't answer any questions.")
+
+        print("\nSaving your progress...")
+        save_weights(weights)
+        print("👋 Keep practicing!")
 
 # --- Main Execution ---
 
@@ -158,30 +270,25 @@ def main():
         description="A personal dictionary and word-learning tool.",
         epilog="Example: python main.py lookup hello"
     )
-    # This creates mutually exclusive commands, so you can only run one at a time.
     subparsers = parser.add_subparsers(dest="command", help="Available commands", required=True)
 
-    # Command: lookup
     lookup_parser = subparsers.add_parser("lookup", help="Look up a word's definition and save it.")
     lookup_parser.add_argument("word", type=str, help="The word to look up.")
 
-    # Command: add
     add_parser = subparsers.add_parser("add", help="Manually add a word to your list.")
     add_parser.add_argument("word", type=str, help="The word to add.")
 
-    # Command: remove
     remove_parser = subparsers.add_parser("remove", help="Remove a word from your list.")
     remove_parser.add_argument("word", type=str, help="The word to remove.")
 
-    # Command: random
     subparsers.add_parser("random", help="Start a random word quiz from your list.")
 
-    # Command: list
     subparsers.add_parser("list", help="Show all words in your list.")
+
+    subparsers.add_parser("test", help="Test your knowledge by guessing words from definitions.")
 
     args = parser.parse_args()
 
-    # --- Execute the chosen command ---
     if args.command == "lookup":
         lookup_word(args.word)
     elif args.command == "add":
@@ -192,6 +299,8 @@ def main():
         random_word_quiz()
     elif args.command == "list":
         list_all_words()
+    elif args.command == "test":
+        word_test()
     else:
         parser.print_help()
 
