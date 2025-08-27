@@ -212,13 +212,23 @@ def word_test():
 
     correct_count = 0
     incorrect_count = 0
+    last_word = None # Keep track of the last word shown
 
     try:
         while True:
-            word_list = list(weights.keys())
-            weight_list = list(weights.values())
+            # Create a copy of weights to modify for this round's selection
+            selectable_weights = weights.copy()
+
+            # If there's more than one word and we have a last word, remove it from selection
+            if len(selectable_weights) > 1 and last_word:
+                del selectable_weights[last_word]
+
+            word_list = list(selectable_weights.keys())
+            weight_list = list(selectable_weights.values())
 
             chosen_word = random.choices(word_list, weights=weight_list, k=1)[0]
+            last_word = chosen_word # Update the last word for the next iteration
+
             definitions = get_definitions_for_word(chosen_word)
 
             if not definitions:
