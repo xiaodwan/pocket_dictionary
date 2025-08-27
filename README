@@ -1,0 +1,55 @@
+Pocket Dictionary 📖
+A command-line tool to help you build, practice, and master your English vocabulary. Look up words, save them to a personal list, and test your knowledge with intelligent quizzes.
+Features
+📚 Instant Definitions: Look up any English word to get its definitions, parts of speech, and phonetic spelling.
+💾 Personal Word List: Automatically save every word you look up to a personal vocabulary list.
+✍️ Manual Management: Manually add or remove words from your list at any time.
+🧠 Quick Recall Quiz: A fast-paced quiz to review your saved words.
+🎯 Advanced Testing: A "guess the word" quiz based on definitions, which intelligently prioritizes words you struggle with.
+📊 Progress Tracking: The test mode tracks your correct/incorrect answers and shows you a full statistical summary.
+Getting Started
+Follow these steps to get the Pocket Dictionary running on your local machine.
+Prerequisites
+You need to have Python 3 installed. You also need to install the requests library to fetch word definitions from the online API.
+Installation
+Clone the repository (or download main.py)
+git clone https://github.com/your_username/pocket-dictionary.git
+cd pocket-dictionary
+
+
+Install the required package
+pip install requests
+
+
+Usage
+All commands are run from your terminal. The basic structure is python main.py [COMMAND] [ARGUMENT].
+Core Commands
+Command
+Description
+lookup <word>
+Looks up a word's definition and saves it to your list.
+add <word>
+Manually adds a word to your list without a lookup.
+remove <word>
+Removes a word from your list.
+list
+Shows all words currently saved in your list, sorted alphabetically.
+random
+Starts a quick-fire quiz to review words. Press ENTER for the next word.
+test
+Starts an advanced quiz where you guess the word from its definition.
+
+Quiz Example (test)
+The test command is the best way to practice.
+Run the command:
+python main.py test
+
+
+The program will display a definition. Type the word you think it is and press ENTER.
+The program will tell you if you were correct and then present the next definition.
+To end the quiz, press Ctrl+C. You will see a summary of your performance.
+How It Works
+The program automatically creates a hidden directory in your user home folder (~/.pocket_dictionary/) to store your data:
+word.txt: A simple text file containing your list of saved words, one per line.
+weights.json: A file that stores your quiz progress. It tracks how often you get each word right or wrong, ensuring that words you find difficult appear more frequently in the test quiz.
+
