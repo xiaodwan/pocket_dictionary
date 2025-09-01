@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# main.py
 import argparse
 import json
 import random
